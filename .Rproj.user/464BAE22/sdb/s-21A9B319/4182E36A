@@ -1,0 +1,18 @@
+{
+    "contents" : "---\ntitle: \"Use Mean\"\nauthor: \"Alexander Noll\"\ndate: \"10. November 2015\"\noutput: html_document\n---\n\n```{r, include = FALSE}\nlibrary(dplyr)\nlibrary(tidyr)\nlibrary(caret)\n\nComputeMean <- function(df){\n    return_variables <-\n        paste0(\"Ret_\", 2:120)\n    \n    df %>%\n        select(Id, one_of(return_variables)) %>%\n        gather(time, returns, 2:120) %>%\n        select(-time) %>%\n        group_by(Id) %>%\n        summarise(mean_return = mean(returns),\n                  sd_return = sd(returns)) %>%\n        inner_join(df, by = \"Id\") %>%\n        return\n}\n```\n\nNow, we introduce a new variables corresponding to the mean gain up to time-step 120. It looks reasonable to also include the standard deviation.\n\n## Data prep\n\n```{r}\nset.seed(1)\ntrain <- \n    readr::read_csv(\"~/Desktop/Data_Science_Scale/Winton/Winton/Data/train.csv\")\ntrain_ind <- createDataPartition(train$Ret_121, list = FALSE, p = 0.8)\ntrain_train <- train[train_ind, ]\ntrain_cv <- train[-train_ind, ]\n```\n\nWe impute missing data by median:\n\n```{r}\nimpute_model <-\n    preProcess(train_train, method = \"medianImpute\")\ntrain_train %<>% predict(impute_model, .) %>% ComputeMean\ntrain_cv %<>% predict(impute_model, .) %>% ComputeMean\n```\n\n## Fit model\n\n```{r}\nret_121_model <-\n    train(Ret_121 ~ Ret_120 + mean_return + sd_return,\n          data = train_train,\n          method = \"lm\"\n          )\n\npreds <- predict(ret_121_model, newdata = train_cv)\nmean(abs(train_cv$Ret_121))\nmean(abs(train_cv$Ret_121 - preds))\n```\n\n```{r}\nret_plusone_model <-\n    train(Ret_PlusOne ~ mean_return + sd_return + Feature_1 + Feature_2 + Feature_3,\n          data = train_train,\n          method = \"rpart\"\n          )\n\npreds <- predict(ret_plusone_model, newdata = train_cv)\nmean(abs(train_cv$Ret_PlusOne))\nmean(abs(train_cv$Ret_PlusOne - preds))\n```\n",
+    "created" : 1447190721198.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4034684324",
+    "id" : "4182E36A",
+    "lastKnownWriteTime" : 1447196800,
+    "path" : "~/Desktop/Data_Science_Scale/Winton/Winton/Markdown/MeanModel.Rmd",
+    "project_path" : "Markdown/MeanModel.Rmd",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "type" : "r_markdown"
+}

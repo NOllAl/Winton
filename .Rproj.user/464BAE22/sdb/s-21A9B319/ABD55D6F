@@ -1,0 +1,18 @@
+{
+    "contents" : "---\ntitle: \"Predict One time step\"\nauthor: \"Alexander Noll\"\ndate: \"10. November 2015\"\noutput: html_document\n---\n\n```{r, include = FALSE}\nlibrary(dplyr)\nlibrary(caret)\nlibrary(magrittr)\n```\n\nAs we found out in the document for data exploration, the autocorrelation coefficient at lag 1 is pretty strong (-0.5 for the time series of means, roughly -0.1 for individual time steps). Thus it seems reasonable to try to predict the variable **Ret_121** from **Ret_120** (in the first approach we do not use any of the other variables).\n\n## Data prep\n\n```{r}\nset.seed(1)\ntrain <- \n    readr::read_csv(\"~/Desktop/Data_Science_Scale/Winton/Winton/Data/train.csv\")\ntrain_ind <- createDataPartition(train$Ret_121, list = FALSE, p = 0.8)\ntrain_train <- train[train_ind, ]\ntrain_cv <- train[-train_ind, ]\n```\n\nWe impute missing data by median:\n\n```{r}\nimpute_model <-\n    preProcess(train_train, method = \"medianImpute\")\ntrain_train %<>% predict(impute_model, .)\ntrain_cv %<>% predict(impute_model, .)\n```\n\n## Train model\n\nWe use a model that can handle missing data, in order not to have to worry about those at the moment:\n\n```{r}\nret_121_model <-\n    train(Ret_121 ~ Ret_120,\n          data = train_train,\n          method = \"lm\"\n          )\n\npreds <- predict(ret_121_model, newdata = train_cv)\nmean(abs(train_cv$Ret_121))\nmean(abs(train_cv$Ret_121 - preds))\n```\n\nThe conclusion is that this model does not work at all.",
+    "created" : 1447190695749.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2087048067",
+    "id" : "ABD55D6F",
+    "lastKnownWriteTime" : 1447190667,
+    "path" : "~/Desktop/Data_Science_Scale/Winton/Winton/Markdown/Simplest.Rmd",
+    "project_path" : "Markdown/Simplest.Rmd",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "type" : "r_markdown"
+}

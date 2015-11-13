@@ -1,0 +1,148 @@
+---
+title: "Data exploration"
+author: "Alexander Noll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r, include = FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+# Data
+
+## Loading
+
+```{r}
+train <- 
+    readr::read_csv("~/Desktop/Data_Science_Scale/Winton/Winton/Data/train.csv")
+```
+
+## Features
+
+We first want to understand the columns of the data:
+
+* We have 40000 observations of 211 variables
+
+Each observation has 25 features (**Feature_1 - Feature_25**) whose meaning is not further specified, the return from one day ago **Ret_MinusTwo**, the return from the half of the current day **Ret_MinusOne** and the interday return (roughly minutewise) starting from the end of the time period where **Ret_MinusOne** ends. In the training sample, we additionally have the target varialbes **Ret_121 - Ret180**, **Ret_PlusOne** and **Ret_PlusTwo**. Furthermore, there are two weight variables **Weight_Intraday** and **Weight_Daily** needed for evaluation purposes.
+
+## Evaluation
+
+The evaluation function is defined as folows:
+
+```{r}
+WMAE <- function(pred_returns, actual_returns, weights){
+    # Computes the weighted mean absolute error according to the forumula
+    # on the Kaggle page
+    #
+    # Args: pred_returns: numeric vector of length 62; the first 60
+    #          elements correspond to intraday returns, the last two to daily
+    #          returns
+    #       actual_returns: numeric vector of length 62; analogous to above
+    #       weights: numeric vector of length two
+    #
+    # Returns: weighted mean absolute error
+    
+    intraday_ret <- 
+        sum(abs(pred_returns[1:60] - actual_returns[1:60]) * weights[1])
+    daily_ret <- 
+        sum(abs(pred_returns[61:62] - actual_returns[61:62]) * weights[2])
+    
+    return(1 / length(pred_returns) * (intraday_ret + daily_ret))
+}
+```
+
+## Missing values
+
+Our next step is to understand the missing values in the data frame:
+
+```{r}
+PlotMissing <- function(df){
+    # Plots number of missing values of a data frame
+    #
+    # Args: df data frame
+    #
+    # Returns: Plot with missing values plotted
+    
+    missing <-
+        colSums(is.na(df)) %>%
+        matrix(nrow = ncol(df)) %>%
+        as.data.frame %>%
+        mutate(col_name = colnames(df)) %>%
+        rename(n_missing = V1) %>%
+        filter(n_missing > 0)
+    
+    ggplot(missing, aes(x = col_name, y = n_missing)) + 
+        geom_bar(stat = "identity") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1))
+}
+
+PlotMissing(train)
+```
+
+From the plot it seems that some features look unusable, e.g. features 1 and 10.
+
+## Time series of means:
+
+```{r}
+means <-
+    data_frame(
+        means = 
+            train %>% 
+            select(starts_with("Ret_")) %>%
+            colMeans(na.rm = TRUE),
+        sd = 
+            train %>%
+            select(starts_with("Ret_")) %>%
+            apply(2, sd, na.rm = TRUE),
+        time = 1 :183
+    ) %>%
+    mutate(
+        means_max = means + 2 * sd,
+        means_min = means - 2 * sd
+    )
+
+ggplot(means, aes(x = time, y = means)) +
+    geom_point() +
+    geom_line() + 
+    geom_errorbar(aes(x = time, ymax = means_max, ymin = means_min)) +
+    scale_y_continuous(limits = c(-0.0001, 0.0001))
+        
+```
+
+In this plot, nothing really is visible and, in fact, that is to be expected. We can, however, use the just constructed data to look at the autocorrelation coefficient:
+
+```{r}
+acf(means$means)
+```
+
+Here we can see that there is a quite significant negative autocorrelation at lag one. The fact that it is only at lag one, of course, makes it difficult to predict beyond **Ret_121**.
+
+## Time series of some examples
+
+```{r}
+PlotRow <- function(row_num) {
+    # Plots time series of a row
+    #
+    # Args: row_num...integer between and 1 and 40000
+    #
+    # Returns: plot of time series
+    
+    time_series <- 
+        train[row_num, ] %>% 
+        select(starts_with("Ret_")) %>%
+        select(-Ret_MinusTwo, -Ret_MinusOne, -Ret_PlusOne, -Ret_PlusTwo) %>%
+        as.matrix %>%
+        t %>% 
+        as.data.frame %>%
+        rename(ret = V1) %>%
+        mutate(time = 1:179)
+    
+    ggplot(time_series, aes(x = time, y = ret)) +
+        geom_point() + 
+        geom_line() + 
+        geom_smooth(method = "lm")
+}
+PlotRow(2)
+```

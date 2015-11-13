@@ -1,0 +1,52 @@
+---
+title: "Predict One time step"
+author: "Alexander Noll"
+date: "10. November 2015"
+output: html_document
+---
+
+```{r, include = FALSE}
+library(dplyr)
+library(caret)
+library(magrittr)
+```
+
+As we found out in the document for data exploration, the autocorrelation coefficient at lag 1 is pretty strong (-0.5 for the time series of means, roughly -0.1 for individual time steps). Thus it seems reasonable to try to predict the variable **Ret_121** from **Ret_120** (in the first approach we do not use any of the other variables).
+
+## Data prep
+
+```{r}
+set.seed(1)
+train <- 
+    readr::read_csv("~/Desktop/Data_Science_Scale/Winton/Winton/Data/train.csv")
+train_ind <- createDataPartition(train$Ret_121, list = FALSE, p = 0.8)
+train_train <- train[train_ind, ]
+train_cv <- train[-train_ind, ]
+```
+
+We impute missing data by median:
+
+```{r}
+impute_model <-
+    preProcess(train_train, method = "medianImpute")
+train_train %<>% predict(impute_model, .)
+train_cv %<>% predict(impute_model, .)
+```
+
+## Train model
+
+We use a model that can handle missing data, in order not to have to worry about those at the moment:
+
+```{r}
+ret_121_model <-
+    train(Ret_121 ~ Ret_120,
+          data = train_train,
+          method = "lm"
+          )
+
+preds <- predict(ret_121_model, newdata = train_cv)
+mean(abs(train_cv$Ret_121))
+mean(abs(train_cv$Ret_121 - preds))
+```
+
+The conclusion is that this model does not work at all.

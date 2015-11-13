@@ -1,0 +1,75 @@
+---
+title: "Use Mean"
+author: "Alexander Noll"
+date: "10. November 2015"
+output: html_document
+---
+
+```{r, include = FALSE}
+library(dplyr)
+library(tidyr)
+library(caret)
+
+ComputeMean <- function(df){
+    return_variables <-
+        paste0("Ret_", 2:120)
+    
+    df %>%
+        select(Id, one_of(return_variables)) %>%
+        gather(time, returns, 2:120) %>%
+        select(-time) %>%
+        group_by(Id) %>%
+        summarise(mean_return = mean(returns),
+                  sd_return = sd(returns)) %>%
+        inner_join(df, by = "Id") %>%
+        return
+}
+```
+
+Now, we introduce a new variables corresponding to the mean gain up to time-step 120. It looks reasonable to also include the standard deviation.
+
+## Data prep
+
+```{r}
+set.seed(1)
+train <- 
+    readr::read_csv("~/Desktop/Data_Science_Scale/Winton/Winton/Data/train.csv")
+train_ind <- createDataPartition(train$Ret_121, list = FALSE, p = 0.8)
+train_train <- train[train_ind, ]
+train_cv <- train[-train_ind, ]
+```
+
+We impute missing data by median:
+
+```{r}
+impute_model <-
+    preProcess(train_train, method = "medianImpute")
+train_train %<>% predict(impute_model, .) %>% ComputeMean
+train_cv %<>% predict(impute_model, .) %>% ComputeMean
+```
+
+## Fit model
+
+```{r}
+ret_121_model <-
+    train(Ret_121 ~ Ret_120 + mean_return + sd_return,
+          data = train_train,
+          method = "lm"
+          )
+
+preds <- predict(ret_121_model, newdata = train_cv)
+mean(abs(train_cv$Ret_121))
+mean(abs(train_cv$Ret_121 - preds))
+```
+
+```{r}
+ret_plusone_model <-
+    train(Ret_PlusOne ~ mean_return + sd_return + Feature_1 + Feature_2 + Feature_3,
+          data = train_train,
+          method = "rpart"
+          )
+
+preds <- predict(ret_plusone_model, newdata = train_cv)
+mean(abs(train_cv$Ret_PlusOne))
+mean(abs(train_cv$Ret_PlusOne - preds))
+```
